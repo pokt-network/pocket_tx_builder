@@ -38,3 +38,5 @@ dist-ssr
 # Backend
 backend/pocket/
 backend/pocketd
+backend/bin
+backend/.pocket

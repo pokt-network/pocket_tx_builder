@@ -50,7 +50,7 @@ POCKET_NODE_URL = {
 POCKET_KEYRING_BACKEND = os.getenv("POCKET_TEST_KEYRING_BACKEND", "test")
 
 # Pocket binary path
-POCKET_BIN_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "pocketd")
+POCKET_BIN_PATH = "/usr/local/bin/pocketd"
 
 # Supabase public key for JWT verification
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
@@ -120,11 +120,36 @@ async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(secur
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+import logging
+import platform
+import stat
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Helper function to run pocket commands
 def run_pocket_command(command: List[str], network: str = "alpha"):
     chain_id = POCKET_CHAIN.get(network, POCKET_CHAIN["alpha"])
     node_url = POCKET_NODE_URL.get(network, POCKET_NODE_URL["alpha"])
     network_secret = NETWORK_SECRETS.get(network, NETWORK_SECRETS["alpha"])
+    
+    # Log binary path and check if it exists
+    logger.info(f"Using pocketd binary at: {POCKET_BIN_PATH}")
+    if not os.path.exists(POCKET_BIN_PATH):
+        logger.error(f"pocketd binary not found at {POCKET_BIN_PATH}")
+        return {
+            "stdout": "",
+            "stderr": f"pocketd binary not found at {POCKET_BIN_PATH}",
+            "exit_code": 1,
+            "txhash": None
+        }
+    
+    # Log file permissions and details
+    file_stat = os.stat(POCKET_BIN_PATH)
+    is_executable = bool(file_stat.st_mode & stat.S_IXUSR)
+    logger.info(f"File permissions: {oct(file_stat.st_mode)}, Executable: {is_executable}")
+    logger.info(f"System architecture: {platform.machine()}, OS: {platform.system()}")
     
     cmd = [POCKET_BIN_PATH] + command
     
@@ -148,7 +173,11 @@ def run_pocket_command(command: List[str], network: str = "alpha"):
         if network_secret:
             env["NETWORK_SECRET"] = network_secret
         
+        # Log the command being executed
+        logger.info(f"Executing command: {' '.join(cmd)}")
+        
         result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+        logger.info(f"Command exit code: {result.returncode}")
         
         # Try to parse the output as JSON if possible
         stdout = result.stdout
@@ -169,6 +198,9 @@ def run_pocket_command(command: List[str], network: str = "alpha"):
             "txhash": txhash
         }
     except Exception as e:
+        logger.error(f"Error executing command: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         return {
             "stdout": "",
             "stderr": str(e),
@@ -234,6 +266,39 @@ async def run_mock_command(request: CommandRequest):
         "exit_code": exit_code,
         "txhash": json.loads(stdout).get("txhash") if "txhash" in stdout else None
     }
+
+@app.post("/account/create-mock", response_model=AccountResponse)
+async def create_account_mock(request: CreateAccountRequest):
+    """Create a new account (wallet) in the Pocket network without authentication"""
+    # Generate a random key name if not provided
+    key_name = request.key_name
+    if not key_name:
+        random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+        key_name = f"user_{random_suffix}"
+    
+    # Run the command to create a new account
+    cmd = ["keys", "add", key_name, "--output", "json"]
+    result = run_pocket_command(cmd, request.network)
+    
+    if result["exit_code"] != 0:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create account: {result['stderr']}"
+        )
+    
+    try:
+        account_data = json.loads(result["stdout"])
+        return {
+            "address": account_data.get("address", ""),
+            "name": key_name,
+            "mnemonic": account_data.get("mnemonic", ""),
+            "message": "Account created successfully"
+        }
+    except json.JSONDecodeError:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to parse account data: {result['stdout']}"
+        )
 
 @app.post("/account/create", response_model=AccountResponse)
 async def create_account(request: CreateAccountRequest, user: Dict = Depends(verify_token)):
