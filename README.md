@@ -11,7 +11,7 @@ A web-based UI for interacting with Cosmos SDK applications, specifically design
 
 ## Project Structure
 
-```
+```bash
 pocket_tx_builder/
 ├── frontend/           # SolidJS frontend
 ├── backend/            # FastAPI backend
@@ -32,12 +32,20 @@ pocket_tx_builder/
 
 1. Clone the repository
 2. Set up backend environment:
+
    ```bash
    cd backend
-   cp .env.example .env  # Edit with your actual secrets
+   cp .env.example .env  # Edit with your actual secrets if needed
    pip install -r requirements.txt
    ```
+
+   The `.env` file should contain the following variables:
+   - Supabase configuration (for authentication)
+   - Pocket configurations (chain IDs and node URLs)
+   - Keyring backend settings
+
 3. Set up frontend environment:
+
    ```bash
    cd frontend
    npm install
@@ -48,12 +56,14 @@ pocket_tx_builder/
 #### Without Docker
 
 1. Start the backend:
+
    ```bash
    cd backend
    uvicorn app.main:app --reload
    ```
 
 2. Start the frontend:
+
    ```bash
    cd frontend
    npm run dev
@@ -64,10 +74,12 @@ pocket_tx_builder/
 #### With Docker
 
 ```bash
-docker-compose up
+docker compose up
 ```
 
 Then access the application at http://localhost:5173
+
+**Note:** Make sure you've created the `.env` file in the backend directory by copying from `.env.example` before running Docker Compose.
 
 ## Features
 
@@ -85,6 +97,7 @@ The application uses Supabase for authentication with Google OAuth. For local de
 ## API Endpoints
 
 - `POST /run`: Execute pocketd commands
+
   - Request body: `{ "command": ["query", "account", "..."], "network": "alpha" }`
   - Returns: `{ "stdout": "...", "stderr": "...", "exit_code": 0 }`
 
@@ -94,12 +107,17 @@ The application uses Supabase for authentication with Google OAuth. For local de
 
 ### Backend (.env file)
 
-- `ALPHA_SECRET`: Secret for Alpha network
-- `BETA_SECRET`: Secret for Beta network
-- `MAINNET_SECRET`: Secret for MainNet
 - `SUPABASE_URL`: Your Supabase project URL
 - `SUPABASE_KEY`: Your Supabase anon key
 - `SUPABASE_JWT_SECRET`: Your Supabase JWT secret
+- `POCKET_HOME`: Pocket home directory
+- `POCKET_CHAIN_ALPHA`: Chain ID for Alpha network
+- `POCKET_CHAIN_BETA`: Chain ID for Beta network
+- `POCKET_CHAIN_MAINNET`: Chain ID for MainNet
+- `POCKET_ALPHA_NODE_URL`: RPC URL for Alpha network
+- `POCKET_BETA_NODE_URL`: RPC URL for Beta network
+- `POCKET_MAINNET_NODE_URL`: RPC URL for MainNet
+- `POCKET_TEST_KEYRING_BACKEND`: Keyring backend for testing
 
 ### Frontend (.env file)
 
