@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  @apply min-h-screen bg-gray-50 dark:bg-gray-900;
+}
+
+/* Custom component styles */
+@layer components {
+  .sidebar-item {
+    @apply flex items-center px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors;
+  }
+  
+  .sidebar-item.active {
+    @apply bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400;
+  }
+  
+  .btn-primary {
+    @apply px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors;
+  }
+}
