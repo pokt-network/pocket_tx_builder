@@ -40,6 +40,7 @@ pocket_tx_builder/
    ```
 
    The `.env` file should contain the following variables:
+
    - Supabase configuration (for authentication)
    - Pocket configurations (chain IDs and node URLs)
    - Keyring backend settings
@@ -107,17 +108,20 @@ The application uses Supabase for authentication with Google OAuth. For local de
 
 ### Backend (.env file)
 
-- `SUPABASE_URL`: Your Supabase project URL
-- `SUPABASE_KEY`: Your Supabase anon key
-- `SUPABASE_JWT_SECRET`: Your Supabase JWT secret
 - `POCKET_HOME`: Pocket home directory
+- `POCKET_TEST_KEYRING_BACKEND`: Keyring backend for testing
+
 - `POCKET_CHAIN_ALPHA`: Chain ID for Alpha network
 - `POCKET_CHAIN_BETA`: Chain ID for Beta network
 - `POCKET_CHAIN_MAINNET`: Chain ID for MainNet
+
 - `POCKET_ALPHA_NODE_URL`: RPC URL for Alpha network
 - `POCKET_BETA_NODE_URL`: RPC URL for Beta network
 - `POCKET_MAINNET_NODE_URL`: RPC URL for MainNet
-- `POCKET_TEST_KEYRING_BACKEND`: Keyring backend for testing
+
+- `SUPABASE_URL`: Your Supabase project URL
+- `SUPABASE_KEY`: Your Supabase anon key
+- `SUPABASE_JWT_SECRET`: Your Supabase JWT secret
 
 ### Frontend (.env file)
 

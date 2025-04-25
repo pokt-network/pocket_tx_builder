@@ -40,3 +40,4 @@ backend/pocket/
 backend/pocketd
 backend/bin
 backend/.pocket
+backend/.pocket_home/

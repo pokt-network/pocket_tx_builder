@@ -129,7 +129,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Helper function to run pocket commands
-def run_pocket_command(command: List[str], network: str = "alpha"):
+def run_pocket_command(command: List[str], network: str = "alpha", requires_confirmation: bool = False):
     chain_id = POCKET_CHAIN.get(network, POCKET_CHAIN["alpha"])
     node_url = POCKET_NODE_URL.get(network, POCKET_NODE_URL["alpha"])
     network_secret = NETWORK_SECRETS.get(network, NETWORK_SECRETS["alpha"])
@@ -176,7 +176,11 @@ def run_pocket_command(command: List[str], network: str = "alpha"):
         # Log the command being executed
         logger.info(f"Executing command: {' '.join(cmd)}")
         
-        result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+        if requires_confirmation:
+            # Pipe 'yes\n' to stdin to confirm prompts
+            result = subprocess.run(cmd, capture_output=True, text=True, env=env, input='yes\n')
+        else:
+            result = subprocess.run(cmd, capture_output=True, text=True, env=env)
         logger.info(f"Command exit code: {result.returncode}")
         
         # Try to parse the output as JSON if possible
@@ -299,6 +303,30 @@ async def create_account_mock(request: CreateAccountRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to parse account data: {result['stdout']}"
         )
+
+# Export private key in hex for a given account name (unsafe, unarmored-hex)
+from fastapi.responses import JSONResponse
+
+@app.get("/account/export-hex/{name}")
+async def export_account_hex(name: str, network: str = "alpha"):
+    """
+    Export the private key for a given account name as an unarmored hex string.
+    WARNING: This is unsafe and for demo/dev only!
+    """
+    cmd = [
+        "keys", "export", name,
+        "--unsafe", "--unarmored-hex",
+        f"--home={POCKET_HOME}"
+    ]
+    result = run_pocket_command(cmd, network, requires_confirmation=True)
+    if result["exit_code"] != 0:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to export private key: {result['stderr']}"
+        )
+    # The stdout should be the hex string (with or without newline)
+    hex_key = result["stdout"].strip().replace('\n', '')
+    return JSONResponse(content={"hex": hex_key})
 
 @app.post("/account/create", response_model=AccountResponse)
 async def create_account(request: CreateAccountRequest, user: Dict = Depends(verify_token)):

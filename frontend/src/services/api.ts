@@ -46,6 +46,50 @@ export async function createAccount(params: CreateAccountRequest): Promise<Accou
   }
 }
 
+// Export the private key in hex for a given account name
+export async function exportAccountHex(name: string, network: string = 'alpha'): Promise<string> {
+  const response = await fetch(`${API_URL}/account/export-hex/${name}?network=${network}`);
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.detail || 'Failed to export private key');
+  }
+  const data = await response.json();
+  return data.hex;
+}
+
+// List accounts (calls backend to run 'pocketd keys list --output json')
+export async function listAccounts(network: string = 'alpha'): Promise<Array<{ name: string; address: string }>> {
+  try {
+    const response = await fetch(`${API_URL}/run-mock`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        command: ['keys', 'list', '--output', 'json'],
+        network,
+      }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Failed to list accounts');
+    }
+    const data = await response.json();
+    // If backend returns CommandResponse, parse stdout
+    let accounts: Array<{ name: string; address: string }> = [];
+    if (data.stdout) {
+      try {
+        const parsed = JSON.parse(data.stdout);
+        accounts = parsed.map((acc: any) => ({ name: acc.name, address: acc.address }));
+      } catch {
+        // fallback: return empty
+      }
+    }
+    return accounts;
+  } catch (error) {
+    console.error('Error listing accounts:', error);
+    throw error;
+  }
+}
+
 export async function getAccount(address: string, network: string = 'alpha'): Promise<CommandResponse> {
   try {
     const response = await fetch(`${API_URL}/account/${address}?network=${network}`);
