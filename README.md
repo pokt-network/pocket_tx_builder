@@ -106,6 +106,11 @@ The application uses Supabase for authentication with Google OAuth. For local de
 
 ## Environment Variables
 
+- `POCKET_ALPHA_FAUCET`: Faucet address for Alpha network
+- `POCKET_BETA_FAUCET`: Faucet address for Beta network
+- `POCKET_MAIN_FAUCET`: Faucet address for Mainnet
+
+
 ### Backend (.env file)
 
 - `POCKET_HOME`: Pocket home directory
