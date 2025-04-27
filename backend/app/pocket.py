@@ -22,6 +22,61 @@ from .config import (
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+from dataclasses import dataclass
+
+@dataclass
+class AccountState:
+    account_number: int
+    sequence: int
+
+# Internal cache for account_number and sequence
+# Maps address (str) -> AccountState
+_account_state_cache: dict[str, AccountState] = {}
+
+
+def get_account_state(address, network="alpha"):
+    """
+    Get (account_number, sequence) for an address. Uses cache if available, else queries pocketd.
+    """
+    if address in _account_state_cache:
+        state = _account_state_cache[address]
+        return state.account_number, state.sequence
+
+    # Query pocketd for account info
+    cmd = [
+        "query", "auth", "account", address, "-o", "json"
+    ]
+    result = run_pocket_command(cmd, network)
+    if result["exit_code"] != 0:
+        logger.error(f"Failed to query account state: {result['stderr']}")
+        raise Exception(f"Failed to query account state: {result['stderr']}")
+    try:
+        data = json.loads(result["stdout"])
+        value = data["account"]["value"]
+        acc_num = int(value["account_number"])
+        seq = int(value["sequence"])
+        _account_state_cache[address] = AccountState(account_number=acc_num, sequence=seq)
+        return acc_num, seq
+    except Exception as e:
+        logger.error(f"Error parsing account state: {e}")
+        raise
+
+def update_account_sequence(address, increment=1):
+    """
+    Increment the cached sequence for an address (after sending a tx).
+    """
+    if address in _account_state_cache:
+        _account_state_cache[address].sequence += increment
+
+def clear_account_cache(address=None):
+    """
+    Clear the cache for a specific address or all addresses.
+    """
+    if address:
+        _account_state_cache.pop(address, None)
+    else:
+        _account_state_cache.clear()
+
 
 def run_pocket_command(command, network="alpha", requires_confirmation=False):
     chain_id = POCKET_CHAIN.get(network, POCKET_CHAIN["alpha"])
