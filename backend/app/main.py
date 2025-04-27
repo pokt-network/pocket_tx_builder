@@ -1,56 +1,37 @@
-from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
-import subprocess
 import os
-import json
-import string
-import random
-from dotenv import load_dotenv
-from jose import jwt
+
+from fastapi import Body, Depends, FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPAuthorizationCredentials
+from pydantic import BaseModel
+from typing import List, Optional, Dict
+from .auth import security, verify_token
+from .config import load_env
+from .models import (
+    AccountResponse,
+    CommandRequest,
+    CommandResponse,
+    CreateAccountRequest,
+    FundAccountRequest,
+    ServiceRequest,
+)
+from .pocket import run_pocket_command, import_hex_key, key_exists
 
 # Load environment variables
-load_dotenv()
+load_env()
 
+# Create FastAPI app
 app = FastAPI(title="Pocket SDK API")
 
-# Setup CORS for frontend
+# Setup CORS for frontend (update allow_origins as needed)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],  # Update with your frontend URL
+    allow_origins=["http://localhost:3000", "http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Security
-security = HTTPBearer()
-
-# Environment secrets
-NETWORK_SECRETS = {
-    "alpha": os.getenv("ALPHA_SECRET", "alpha_default_secret"),
-    "beta": os.getenv("BETA_SECRET", "beta_default_secret"),
-    "mainnet": os.getenv("MAINNET_SECRET", "mainnet_default_secret"),
-}
-
-# Pocket configuration
-POCKET_HOME = os.getenv("POCKET_HOME", ".pocket")
-POCKET_CHAIN = {
-    "alpha": os.getenv("POCKET_CHAIN_ALPHA", "pocket-alpha"),
-    "beta": os.getenv("POCKET_CHAIN_BETA", "pocket-beta"),
-    "mainnet": os.getenv("POCKET_CHAIN_MAINNET", "pocket"),
-}
-POCKET_NODE_URL = {
-    "alpha": os.getenv("POCKET_ALPHA_NODE_URL", "https://shannon-testnet-grove-rpc.alpha.poktroll.com"),
-    "beta": os.getenv("POCKET_BETA_NODE_URL", "https://shannon-testnet-grove-rpc.beta.poktroll.com"),
-    "mainnet": os.getenv("POCKET_MAINNET_NODE_URL", "https://shannon-grove-rpc.mainnet.poktroll.com"),
-}
-POCKET_KEYRING_BACKEND = os.getenv("POCKET_TEST_KEYRING_BACKEND", "test")
-
-# Pocket binary path
-POCKET_BIN_PATH = "/usr/local/bin/pocketd"
 
 # Supabase public key for JWT verification
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
@@ -101,7 +82,6 @@ class ServiceRequest(BaseModel):
     network: str = "alpha"
 
 
-# Auth middleware
 async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     token = credentials.credentials
     try:
@@ -205,31 +185,18 @@ def run_pocket_command(command: List[str], network: str = "alpha", requires_conf
             # If not valid JSON, use the raw output
             pass
 
-        return {"stdout": stdout, "stderr": result.stderr, "exit_code": result.returncode, "txhash": txhash}
+        return {
+            "stdout": stdout,
+            "stderr": result.stderr,
+            "exit_code": result.returncode,
+            "txhash": txhash,
+        }
     except Exception as e:
         logger.error(f"Error executing command: {str(e)}")
         import traceback
 
         logger.error(traceback.format_exc())
         return {"stdout": "", "stderr": str(e), "exit_code": 1, "txhash": None}
-
-
-def key_exists(name: str, network: str = "alpha") -> bool:
-    """
-    Check if a key exists in the keyring.
-    """
-    cmd = ["keys", "show", name]
-    result = run_pocket_command(cmd, network)
-    return result["exit_code"] == 0
-
-
-def import_hex_key(name: str, hex_key: str, network: str = "alpha") -> bool:
-    """
-    Import a key from a hex string.
-    """
-    cmd = ["keys", "import-hex", name, hex_key, "--key-type", "secp256k1", "--keyring-backend", POCKET_KEYRING_BACKEND]
-    result = run_pocket_command(cmd, network, requires_confirmation=True)
-    return result["exit_code"] == 0
 
 
 # On startup, ensure faucet keys are imported if not present
@@ -266,7 +233,12 @@ async def import_account_hex(name: str = Body(...), hex_key: str = Body(...), ne
     success = import_hex_key(name, hex_key, network)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to import hex key")
-    return {"stdout": f"Imported key {name}", "stderr": "", "exit_code": 0, "txhash": None}
+    return {
+        "stdout": f"Imported key {name}",
+        "stderr": "",
+        "exit_code": 0,
+        "txhash": None,
+    }
 
 
 # Routes
@@ -289,7 +261,10 @@ async def run_mock_command(request: CommandRequest):
     command_str = " ".join(request.command)
 
     if "query account" in command_str:
-        stdout = json.dumps({"address": "pocket1abcdef123456789", "balance": "1000000", "nonce": 5}, indent=2)
+        stdout = json.dumps(
+            {"address": "pocket1abcdef123456789", "balance": "1000000", "nonce": 5},
+            indent=2,
+        )
         stderr = ""
         exit_code = 0
     elif "query validator" in command_str:
@@ -344,7 +319,8 @@ async def create_account_mock(request: CreateAccountRequest):
 
     if result["exit_code"] != 0:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to create account: {result['stderr']}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create account: {result['stderr']}",
         )
 
     try:
@@ -372,7 +348,14 @@ async def export_account_hex(name: str, network: str = "alpha"):
     Export the private key for a given account name as an unarmored hex string.
     WARNING: This is unsafe and for demo/dev only!
     """
-    cmd = ["keys", "export", name, "--unsafe", "--unarmored-hex", f"--home={POCKET_HOME}"]
+    cmd = [
+        "keys",
+        "export",
+        name,
+        "--unsafe",
+        "--unarmored-hex",
+        f"--home={POCKET_HOME}",
+    ]
     result = run_pocket_command(cmd, network, requires_confirmation=True)
     if result["exit_code"] != 0:
         raise HTTPException(
@@ -399,7 +382,8 @@ async def create_account(request: CreateAccountRequest, user: Dict = Depends(ver
 
     if result["exit_code"] != 0:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to create account: {result['stderr']}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create account: {result['stderr']}",
         )
 
     try:
@@ -421,13 +405,22 @@ async def create_account(request: CreateAccountRequest, user: Dict = Depends(ver
 async def fund_account(request: FundAccountRequest, user: Dict = Depends(verify_token)):
     """Fund an account with tokens"""
     # Run the command to send tokens to the address
-    cmd = ["tx", "bank", "send", request.from_account, request.address, request.amount, "--yes"]
+    cmd = [
+        "tx",
+        "bank",
+        "send",
+        request.from_account,
+        request.address,
+        request.amount,
+        "--yes",
+    ]
 
     result = run_pocket_command(cmd, request.network)
 
     if result["exit_code"] != 0:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to fund account: {result['stderr']}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fund account: {result['stderr']}",
         )
 
     return result
@@ -453,7 +446,8 @@ async def create_service(request: ServiceRequest, user: Dict = Depends(verify_to
 
     if result["exit_code"] != 0:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to create service: {result['stderr']}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create service: {result['stderr']}",
         )
 
     return result

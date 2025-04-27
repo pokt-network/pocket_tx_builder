@@ -1,12 +1,19 @@
-import { createSignal } from "solid-js";
+import {
+  createAccount,
+  exportAccountHex,
+  getExplorerUrl,
+} from "../services/api";
+
+import AccountListCard from "../components/AccountListCard";
 import type { AccountResponse } from "../services/api";
-import { createAccount, exportAccountHex, getExplorerUrl } from "../services/api";
+import { createSignal } from "solid-js";
 
 // Account page components
 const AccountPage = (props: { network: string }) => {
   const [isCreating, setIsCreating] = createSignal(false);
   const [keyName, setKeyName] = createSignal("");
-  const [createdAccount, setCreatedAccount] = createSignal<AccountResponse | null>(null);
+  const [createdAccount, setCreatedAccount] =
+    createSignal<AccountResponse | null>(null);
   const [accountHexKey, setAccountHexKey] = createSignal<string>("");
   const [hexKeyLoading, setHexKeyLoading] = createSignal<boolean>(false);
   const [hexKeyError, setHexKeyError] = createSignal<string>("");
@@ -463,6 +470,10 @@ const AccountPage = (props: { network: string }) => {
           </div>
         )}
       </div>
+      {/* Account List Section at the bottom */}
+      <section class="mt-16">
+        <AccountListCard />
+      </section>
     </div>
   );
 };
