@@ -1,0 +1,28 @@
+modules = ["nodejs-20", "python-3.12", "web"]
+run = "docker compose up"
+
+[nix]
+channel = "stable-24_05"
+
+[deployment]
+run = ["sh", "-c", "docker compose up"]
+
+[workflows]
+
+[[workflows.workflow]]
+name = "Frontend Dev"
+author = 15953109
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd frontend && npm run dev"
+
+[[workflows.workflow]]
+name = "Backend Dev"
+author = 15953109
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd backend && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
